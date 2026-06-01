@@ -4,3 +4,5 @@ tsconfig.json
 CLAUDE.md
 .cursor/
 bun.lock
+
+.github/

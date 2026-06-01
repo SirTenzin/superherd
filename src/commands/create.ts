@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import { basename } from "node:path";
 import type { Command } from "commander";
 import { CliError } from "../errors";
-import { getGitRoot } from "../git";
+import { assertBranchNotCheckedOut, assertLocalBranchExists, getGitRoot } from "../git";
 import {
   createHerdrTab,
   createHerdrWorkspace,
@@ -23,6 +23,7 @@ interface CreateOptions {
   verbose?: boolean;
   setupTerminals?: boolean;
   shellTab?: boolean;
+  from?: string;
 }
 
 export function registerCreateCommand(program: Command): void {
@@ -32,6 +33,7 @@ export function registerCreateCommand(program: Command): void {
     .argument("<branch>", "branch name to create or reuse")
     .argument("<name...>", "workspace name")
     .option("--project <id-or-name>", "Superset project id, repo name, or owner/name")
+    .option("--from <branch>", "base branch/ref to create the new branch from")
     .option("--dry-run", "print what would happen without creating anything")
     .option("--verbose", "print extra progress details")
     .option("--no-setup-terminals", "do not open Superset setup terminals in Herdr")
@@ -39,12 +41,26 @@ export function registerCreateCommand(program: Command): void {
     .action((branch: string, nameParts: string[], options: CreateOptions) =>
       createWorkspace(branch, nameParts.join(" "), options),
     );
+
+  program
+    .command("inherit")
+    .description("Open an existing unchecked-out branch as a Superset worktree in Herdr")
+    .argument("<branch>", "existing local branch to check out into a worktree")
+    .argument("<name...>", "workspace name")
+    .option("--project <id-or-name>", "Superset project id, repo name, or owner/name")
+    .option("--dry-run", "print what would happen without creating anything")
+    .option("--verbose", "print extra progress details")
+    .option("--no-setup-terminals", "do not open Superset setup terminals in Herdr")
+    .option("--no-shell-tab", "do not create a final local shell tab")
+    .action((branch: string, nameParts: string[], options: CreateOptions) =>
+      createWorkspace(branch, nameParts.join(" "), { ...options, inherit: true }),
+    );
 }
 
 async function createWorkspace(
   branch: string,
   name: string,
-  options: CreateOptions,
+  options: CreateOptions & { inherit?: boolean },
 ): Promise<void> {
   const logger = createLogger(Boolean(options.verbose));
   const { path: manifestPath, manifest } = readLatestSupersetManifest();
@@ -55,9 +71,15 @@ async function createWorkspace(
   const project = resolveProject(projects, repoRoot, options.project);
   logger.verbose(`using Superset project ${project.id} (${project.repoPath})`);
 
+  if (options.inherit) {
+    assertLocalBranchExists(repoRoot, branch);
+    assertBranchNotCheckedOut(repoRoot, branch);
+  }
+
   if (options.dryRun) {
-    logger.info(`would create Superset workspace "${name}" on branch "${branch}"`);
+    logger.info(`would ${options.inherit ? "inherit" : "create"} Superset workspace "${name}" on branch "${branch}"`);
     logger.info(`would use project ${project.id} at ${project.repoPath}`);
+    if (options.from) logger.info(`would base new branch on ${options.from}`);
     return;
   }
 
@@ -65,6 +87,7 @@ async function createWorkspace(
     projectId: project.id,
     branch,
     name,
+    ...(options.from ? { baseBranch: options.from } : {}),
   });
   const worktreePath = resolveWorktreePath(project, created.workspace);
 

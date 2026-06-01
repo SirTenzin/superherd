@@ -30,6 +30,8 @@ Run from inside a Superset-imported git repository:
 
 ```sh
 hs create my-branch "My Workspace"
+hs create my-branch --from staging "My Workspace"
+hs inherit existing-unchecked-out-branch "Existing Branch Workspace"
 ```
 
 This will:
@@ -43,14 +45,16 @@ This will:
 ## Options
 
 ```sh
+hs create <new-branch> --from <base-branch-or-ref> <name...>
 hs create <branch> <name...> --project <id-or-name>
+hs inherit <existing-unchecked-out-branch> <name...>
 hs create <branch> <name...> --dry-run
 hs create <branch> <name...> --verbose
 hs create <branch> <name...> --no-setup-terminals
 hs create <branch> <name...> --no-shell-tab
 ```
 
-`--project` accepts a Superset project id, repo name, or `owner/name`.
+`--project` accepts a Superset project id, repo name, or `owner/name`. `inherit` fails before calling Superset if git reports the branch is already checked out in any worktree.
 
 ## Identify and Teardown
 
