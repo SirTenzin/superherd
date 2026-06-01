@@ -1,0 +1,78 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/SchemaStore/schemastore/master/src/schemas/json/github-workflow.json
+name: npm publish
+on:
+  push:
+    branches: [main]
+    paths:
+      - "**"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version bump type
+        required: true
+        default: patch
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+jobs:
+  publish:
+    if: github.event_name == 'workflow_dispatch' || !contains(github.event.head_commit.message, '[skip ci]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install Bun
+        run: |
+          for attempt in 1 2 3 4 5; do
+            if curl -fsSL https://bun.com/install | bash -s "bun-v1.3.14"; then
+              echo "$HOME/.bun/bin" >> "$GITHUB_PATH"
+              "$HOME/.bun/bin/bun" --version
+              exit 0
+            fi
+            echo "Bun install attempt $attempt failed, retrying in 30s..."
+            sleep 30
+          done
+          exit 1
+      - run: bun ci
+      - name: Bump version
+        run: |
+          node <<'EOF'
+          const fs = require("fs")
+          const bump = process.env.BUMP
+          const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"))
+          const [major, minor, patch] = pkg.version.split(".").map(Number)
+          pkg.version =
+            bump === "major"
+              ? `${major + 1}.0.0`
+              : bump === "minor"
+                ? `${major}.${minor + 1}.0`
+                : `${major}.${minor}.${patch + 1}`
+          fs.writeFileSync("package.json", JSON.stringify(pkg, null, 2) + "\n")
+          console.log(`Bumped to v${pkg.version}`)
+          EOF
+        env:
+          BUMP: ${{ github.event_name == 'workflow_dispatch' && inputs.version || 'patch' }}
+      - run: bun run build
+      - uses: actions/setup-node@v4
+        with:
+          registry-url: "https://registry.npmjs.org"
+          node-version: 24
+      - name: Update npm
+        run: npm install -g npm@latest
+      - run: npm publish --provenance --access public
+      - name: Commit and tag release
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          VERSION=$(node -p "require('./package.json').version")
+          git add package.json
+          git commit -m "Release superherd v${VERSION} [skip ci]"
+          git tag "v${VERSION}"
+          git push origin HEAD --follow-tags
