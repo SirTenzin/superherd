@@ -1,0 +1,35 @@
+{
+  "name": "superherd",
+  "module": "dist/index.js",
+  "type": "module",
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "dependencies": {
+    "commander": "^15.0.0"
+  },
+  "version": "0.1.0",
+  "description": "Bridge Superset workspaces into Herdr",
+  "license": "MIT",
+  "bin": {
+    "superherd": "dist/index.js",
+    "hs": "dist/index.js"
+  },
+  "scripts": {
+    "build": "bun build src/index.ts --target bun --outfile dist/index.js && chmod +x dist/index.js",
+    "prepack": "bun run build",
+    "check": "bun run build"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "main": "dist/index.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/SirTenzin/superherd.git"
+  },
+  "bugs": {
+    "url": "https://github.com/SirTenzin/superherd/issues"
+  },
+  "homepage": "https://github.com/SirTenzin/superherd#readme"
+}
