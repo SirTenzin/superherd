@@ -4,10 +4,14 @@ import type { SupersetProject } from "./types";
 
 export function resolveProject(
   projects: SupersetProject[],
-  repoRoot: string,
+  repoRoot?: string,
   selector?: string,
 ): SupersetProject {
   if (selector) return resolveProjectSelector(projects, selector);
+
+  if (!repoRoot) {
+    throw new CliError("A git root is required when --project is not provided.");
+  }
 
   const normalizedRoot = resolve(repoRoot);
   const matches = projects.filter((project) => resolve(project.repoPath) === normalizedRoot);

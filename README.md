@@ -26,12 +26,13 @@ hs --help
 
 ## Usage
 
-Run from inside a Superset-imported git repository:
+Run from inside a Superset-imported git repository or an existing Superset worktree:
 
 ```sh
 hs create my-branch "My Workspace"
 hs create my-branch --from staging "My Workspace"
 hs inherit existing-unchecked-out-branch "Existing Branch Workspace"
+hs create my-branch "My Workspace" --eject
 ```
 
 This will:
@@ -52,9 +53,12 @@ hs create <branch> <name...> --dry-run
 hs create <branch> <name...> --verbose
 hs create <branch> <name...> --no-setup-terminals
 hs create <branch> <name...> --no-shell-tab
+hs create <branch> <name...> --eject
 ```
 
 `--project` accepts a Superset project id, repo name, or `owner/name`. `inherit` fails before calling Superset if git reports the branch is already checked out in any worktree.
+
+When run from inside an existing Superset worktree, `create` and `inherit` resolve the original Superset project automatically. `--eject` closes the invoking Herdr pane after a successful create/inherit when `HERDR_PANE_ID` is available.
 
 ## Identify and Teardown
 

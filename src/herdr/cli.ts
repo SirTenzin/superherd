@@ -52,6 +52,10 @@ export function runHerdrPaneCommand(paneId: string, command: string): void {
   runHerdr(["pane", "run", paneId, command]);
 }
 
+export function closeHerdrPane(paneId: string): void {
+  runHerdr(["pane", "close", paneId]);
+}
+
 function runHerdrJson(args: string[]): Record<string, unknown> {
   const stdout = runHerdr(args);
   try {

@@ -4,6 +4,7 @@ import type { Command } from "commander";
 import { CliError } from "../errors";
 import { assertBranchNotCheckedOut, assertLocalBranchExists, getGitRoot } from "../git";
 import {
+  closeHerdrPane,
   createHerdrTab,
   createHerdrWorkspace,
   focusHerdrTab,
@@ -12,6 +13,8 @@ import {
 } from "../herdr/cli";
 import { createLogger } from "../log";
 import { readLatestSupersetManifest } from "../superset/manifest";
+import type { SupersetHostManifest } from "../superset/manifest";
+import { identifyWorkspace } from "../superset/identify";
 import { resolveProject } from "../superset/projects";
 import { trpcMutation, trpcQuery } from "../superset/trpc";
 import type { CreateWorkspaceResult, SupersetProject } from "../superset/types";
@@ -24,6 +27,7 @@ interface CreateOptions {
   setupTerminals?: boolean;
   shellTab?: boolean;
   from?: string;
+  eject?: boolean;
 }
 
 export function registerCreateCommand(program: Command): void {
@@ -38,6 +42,7 @@ export function registerCreateCommand(program: Command): void {
     .option("--verbose", "print extra progress details")
     .option("--no-setup-terminals", "do not open Superset setup terminals in Herdr")
     .option("--no-shell-tab", "do not create a final local shell tab")
+    .option("--eject", "close the Herdr pane that invoked this command after success")
     .action((branch: string, nameParts: string[], options: CreateOptions) =>
       createWorkspace(branch, nameParts.join(" "), options),
     );
@@ -52,6 +57,7 @@ export function registerCreateCommand(program: Command): void {
     .option("--verbose", "print extra progress details")
     .option("--no-setup-terminals", "do not open Superset setup terminals in Herdr")
     .option("--no-shell-tab", "do not create a final local shell tab")
+    .option("--eject", "close the Herdr pane that invoked this command after success")
     .action((branch: string, nameParts: string[], options: CreateOptions) =>
       createWorkspace(branch, nameParts.join(" "), { ...options, inherit: true }),
     );
@@ -66,9 +72,8 @@ async function createWorkspace(
   const { path: manifestPath, manifest } = readLatestSupersetManifest();
   logger.verbose(`using Superset manifest ${manifestPath}`);
 
-  const repoRoot = getGitRoot();
   const projects = await trpcQuery<SupersetProject[]>(manifest, "project.list");
-  const project = resolveProject(projects, repoRoot, options.project);
+  const { project, repoRoot } = await resolveCreateProject(manifest, projects, options.project);
   logger.verbose(`using Superset project ${project.id} (${project.repoPath})`);
 
   if (options.inherit) {
@@ -127,6 +132,40 @@ async function createWorkspace(
     focusHerdrTab(shellTab.tab_id);
     logger.info(`focused local shell tab ${shellTab.tab_id}`);
   }
+
+  if (options.eject) {
+    ejectCurrentPane(logger);
+  }
+}
+
+async function resolveCreateProject(
+  manifest: SupersetHostManifest,
+  projects: SupersetProject[],
+  selector?: string,
+): Promise<{ project: SupersetProject; repoRoot: string }> {
+  if (selector) {
+    const project = resolveProject(projects, undefined, selector);
+    return { project, repoRoot: project.repoPath };
+  }
+
+  const identified = await identifyWorkspace(manifest, process.cwd());
+  if (identified?.project) {
+    return { project: identified.project, repoRoot: identified.project.repoPath };
+  }
+
+  const repoRoot = getGitRoot();
+  const project = resolveProject(projects, repoRoot);
+  return { project, repoRoot };
+}
+
+function ejectCurrentPane(logger: ReturnType<typeof createLogger>): void {
+  const paneId = process.env.HERDR_PANE_ID;
+  if (!paneId) {
+    logger.info("--eject requested, but HERDR_PANE_ID is not set; leaving this shell open");
+    return;
+  }
+
+  closeHerdrPane(paneId);
 }
 
 function makeAttachCommand(workspaceId: string, terminalId: string): string {
